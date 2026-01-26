@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Gestor de Horarios Académicos</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#ffffff;
+  --fg:#000000;
+  --gray:#f3f3f3;
+}
+
+*{
+  box-sizing:border-box;
+  font-family:"Inter", sans-serif;
+}
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--fg);
+}
+
+.view{
+  display:none;
+  min-height:100vh;
+  padding:30px;
+}
+
+.view.active{
+  display:flex;
+  flex-direction:column;
+}
+
+#home header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:15px;
+}
+
+#home header button{
+  padding:10px 18px;
+  background:#000;
+  color:#fff;
+  border:none;
+  cursor:pointer;
+  font-weight:600;
+}
+
+#sortBar{
+  margin-bottom:20px;
+}
+
+#sortBar select{
+  padding:6px 10px;
+  border:1px solid #000;
+  background:#fff;
+  font-weight:600;
+}
+
+#scheduleList{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  gap:15px;
+}
+
+.schedule-card{
+  border:2px solid #000;
+  padding:14px;
+  cursor:pointer;
+  transition:0.15s;
+  position:relative;
+}
+
+.schedule-card:hover{
+  background:#f5f5f5;
+}
+
+.schedule-card h3{
+  margin:0;
+  font-size:16px;
+}
+
+.schedule-card span{
+  font-size:12px;
+  color:#444;
+}
+
+.card-actions{
+  position:absolute;
+  top:6px;
+  right:6px;
+  display:flex;
+  gap:4px;
+}
+
+.card-actions button{
+  border:1px solid #000;
+  background:#fff;
+  font-size:12px;
+  padding:2px 6px;
+  cursor:pointer;
+  font-weight:600;
+}
+
+#app header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:10px;
+}
+
+#app header button{
+  padding:6px 15px;
+  border:1px solid #000;
+  background:#fff;
+  cursor:pointer;
+  font-weight:600;
+}
+
+.actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+  margin-bottom:10px;
+}
+
+.actions button{
+  padding:8px 16px;
+  background:#000;
+  color:#fff;
+  border:none;
+  cursor:pointer;
+  font-weight:600;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
+}
+
+th, td{
+  border:1px solid #000;
+  text-align:center;
+  font-size:14px;
+}
+
+th{
+  background:#000;
+  color:#fff;
+  padding:6px;
+}
+
+.time{
+  font-weight:600;
+  background:#f4f4f4;
+  padding:6px;
+}
+
+.cell{
+  cursor:pointer;
+  position:relative;
+  height:60px;
+  padding: 0;
+}
+
+.cell:hover{
+  background:#e6e6e6;
+}
+
+.subject {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  border-radius: 6px;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  transition: height 0.15s ease, top 0.15s ease;
+}
+
+.subject-content {
+  margin: 4px;
+  border-radius: 6px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 4px;
+  font-weight: bold;
+}
+
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.5);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:50;
+}
+
+.modal.active{
+  display:flex;
+}
+
+.modal-content{
+  background:#fff;
+  border:2px solid #000;
+  padding:20px 20px 24px 20px;
+  width:320px;
+  position:relative;
+}
+
+
+.modal-content h3{
+  margin:0 0 10px 0;
+}
+
+.modal-content input,
+.modal-content select{
+  width:100%;
+  padding:8px;
+  border:1px solid #000;
+  margin-top:4px;
+}
+
+.modal-content button{
+  width:100%;
+  padding:8px;
+  background:#000;
+  color:#fff;
+  border:none;
+  cursor:pointer;
+  font-weight:600;
+  margin-top:12px;
+}
+
+.close-btn{
+  position:absolute;
+  top:8px;
+  right:12px;
+  font-size:20px;
+  font-weight:700;
+  cursor:pointer;
+  color:#000;
+  user-select:none;
+}
+
+.close-btn:hover{
+  color:#555;
+}
+
+.modal-content h3{
+  padding-right:35px;
+}
+
+.ghost-subject{
+  position:absolute;
+  inset:4px;
+  border-radius:6px;
+  opacity:0.4;
+  pointer-events:none;
+}
+
+.cell.blocked{
+  border-top: none;
+  pointer-events:none;
+  background:#f0f0f0;
+}
+.input-error{
+  border:2px solid #b00020 !important;
+  background:#ffecec;
+}
+
+.error-text{
+  color:#b00020;
+  font-size:12px;
+  margin-top:4px;
+}
+
+button:disabled{
+  background:#999 !important;
+  cursor:not-allowed;
+  opacity:0.6;
+}
+
+</style>
+</head>
+
+<body>
+
+<!--HOME-->
+<div id="home" class="view active">
+  <header>
+    <h1>Mis Horarios</h1>
+    <button>+ Nuevo horario</button>
+  </header>
+
+  <div id="sortBar">
+    <select>
+  <option value="dateDesc">Fecha (más reciente)</option>
+  <option value="dateAsc">Fecha (más antiguo)</option>
+  <option value="nameAsc">Nombre (A-Z)</option>
+  <option value="nameDesc">Nombre (Z-A)</option>
+</select>
+  </div>
+
+  <div id="scheduleList">
+    <!-- Cards de horarios -->
+  </div>
+</div>
+
+<!--APP-->
+<div id="app" class="view">
+  <header>
+    <h2>Horario actual</h2>
+    <button>← Volver</button>
+  </header>
+
+  <div class="actions">
+    <button id="exportBtn">Exportar como imagen</button>
+    <button id="calculateMonthlyBtn">Calcular Mesada</button>
+  </div>
+
+  <div id="scheduleContainer">
+  <table id="schedule">
+    <thead>
+      <tr>
+        <th>Hora</th>
+        <th>Lunes</th>
+        <th>Martes</th>
+        <th>Miércoles</th>
+        <th>Jueves</th>
+        <th>Viernes</th>
+        <th>Sábado</th>
+      </tr>
+    </thead>
+    <tbody>
+    </tbody>
+  </table>
+</div>
+</div>
+
+<!-- MODAL NUEVO HORARIO -->
+<div class="modal" id="newScheduleModal">
+  <div class="modal-content">
+    <span class="close-btn">✕</span>
+    <h3>Nuevo horario</h3>
+    <label>Nombre del horario</label>
+    <input type="text">
+    <button>Guardar</button>
+  </div>
+</div>
+
+<!--RENOMBRAR-->
+
+<div class="modal" id="renameScheduleModal">
+  <div class="modal-content">
+    <span class="close-btn">✕</span>
+    <h3>Renombrar horario</h3>
+    <label>Nuevo nombre</label>
+    <input type="text">
+    <button>Guardar cambios</button>
+  </div>
+</div>
+
+<!--ELIMINAR-->
+
+<div class="modal" id="deleteScheduleModal">
+  <div class="modal-content">
+    <span class="close-btn">✕</span>
+    <h3>Eliminar horario</h3>
+    <p>¿Seguro que deseas eliminar este horario?</p>
+    <button>Eliminar</button>
+  </div>
+</div>
+
+<!--ASIGNATURA-->
+
+<div class="modal" id="subjectModal">
+  <div class="modal-content">
+    <span class="close-btn">✕</span>
+    <h3>Asignatura</h3>
+
+    <label>Nombre</label>
+    <input type="text">
+
+    <label>Color</label>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <input type="color" id="subjectColorPicker">
+      <div id="colorPreview" 
+        style="width:28px;height:28px;border:2px solid #000;border-radius:4px;background:#1d4ed8;">
+      </div>
+    </div>
+
+
+    <label>Bloques académicos</label>
+    <select>
+  <option value="1">1 bloque</option>
+  <option value="2">2 bloques</option>
+  <option value="3">3 bloques</option>
+  <option value="4">4 bloques</option>
+</select>
+
+    <button>Guardar asignatura</button>
+  </div>
+</div>
+
+<!--MESADA-->
+
+<div class="modal" id="monthlyModal">
+  <div class="modal-content">
+    <span class="close-btn">✕</span>
+    <h3>Calcular mesada</h3>
+
+    <label>Mes</label>
+    <select id="monthSelect"></select>
+
+    <label>Año</label>
+    <input type="number" id="yearInput" min="2020" placeholder="Ej: 2026">
+    <div class="error-text" id="yearError"></div>
+
+    <label>Merienda diaria (COP)</label>
+    <input type="number" id="snackCostInput" min="0" placeholder="Ej: 5000">
+    <div class="error-text" id="snackError"></div>
+
+    <label>Transporte ida + vuelta (COP)</label>
+    <input type="number" id="transportCostInput" min="0" placeholder="Ej: 8000">
+    <div class="error-text" id="transportError"></div>
+
+    <label>Mínimo de bloques para hueco</label>
+    <input type="number" id="gapBlocksInput" min="0" placeholder="Ej: 2">
+    <div class="error-text" id="gapError"></div>
+
+    <button id="confirmMonthlyCalculation">Calcular</button>
+      <div id="monthlyResult" style="
+        margin-top:12px;
+        border-top:1px solid #000;
+        padding-top:10px;
+        display:none;
+    ">
+        <p id="resultMonth"></p>
+        <p id="resultTrips"></p>
+        <p id="resultTotal"></p>
+        <button id="closeMonthlyResult">Cerrar</button>
+</div>
+
+  </div>
+</div>
+
+<div id="duplicateBar" style="
+  position:fixed;
+  top:0;
+  left:0;
+  right:0;
+  background:#0066cc;
+  color:white;
+  padding:8px 12px;
+  font-weight:600;
+  display:none;
+  z-index:100;
+  justify-content:space-between;
+  align-items:center;
+">
+  <span>Modo duplicación activo: selecciona una celda</span>
+  <button id="cancelDuplicateBtn" style="
+    background:#fff;
+    color:#0066cc;
+    border:none;
+    padding:4px 8px;
+    font-weight:600;
+    cursor:pointer;
+  ">Cancelar</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<script>
+
+// PARTE 2
+
+const monthlyModal = document.getElementById("monthlyModal");
+
+const duplicateBar = document.getElementById("duplicateBar");
+const cancelDuplicateBtn = document.getElementById("cancelDuplicateBtn");
+const calculateBtn = document.getElementById("calculateMonthlyBtn");
+const monthlyResult = document.getElementById("monthlyResult");
+const resultMonth = document.getElementById("resultMonth");
+const resultTrips = document.getElementById("resultTrips");
+const resultTotal = document.getElementById("resultTotal");
+const closeMonthlyResultBtn = document.getElementById("closeMonthlyResult");
+
+closeMonthlyResultBtn.onclick = () => {
+  monthlyResult.style.display = "none";
+};
+
+cancelDuplicateBtn.onclick = () => {
+  resetSubjectModalState();
+};
+
+let schedules = JSON.parse(localStorage.getItem("schedules")) || [];
+let currentScheduleIndex = null;
+
+// ELEMENTOS HOME
+
+const homeView = document.getElementById("home");
+const appView = document.getElementById("app");
+const scheduleList = document.getElementById("scheduleList");
+const createScheduleBtn = document.querySelector("#home header button");
+const sortSelect = document.querySelector("#sortBar select");
+
+const nameModal = document.getElementById("newScheduleModal");
+const renameModal = document.getElementById("renameScheduleModal");
+const deleteModal = document.getElementById("deleteScheduleModal");
+
+const scheduleNameInput = nameModal.querySelector("input");
+const renameInput = renameModal.querySelector("input");
+
+const confirmCreateBtn = nameModal.querySelector("button:not(.close-btn)");
+const confirmRenameBtn = renameModal.querySelector("button:not(.close-btn)");
+const confirmDeleteBtn = deleteModal.querySelector("button:not(.close-btn)");
+
+let selectedScheduleIndex = null;
+
+// GUARDAR EN LOCALSTORAGE
+
+function saveData(){
+  localStorage.setItem("schedules", JSON.stringify(schedules));
+}
+
+// RENDER DE HORARIOS FUNCIONA YA
+
+function renderSchedules(){
+  scheduleList.innerHTML = "";
+
+  let sorted = [...schedules];
+
+  switch(sortSelect.value){
+    case "dateDesc":
+      sorted.sort((a,b)=>b.created - a.created);
+      break;
+    case "dateAsc":
+      sorted.sort((a,b)=>a.created - b.created);
+      break;
+    case "nameAsc":
+      sorted.sort((a,b)=>a.name.localeCompare(b.name));
+      break;
+    case "nameDesc":
+      sorted.sort((a,b)=>b.name.localeCompare(a.name));
+      break;
+  }
+
+  sorted.forEach(schedule=>{
+    const index = schedules.indexOf(schedule);
+
+    const card = document.createElement("div");
+    card.className = "schedule-card";
+
+    card.innerHTML = `
+      <h3>${schedule.name}</h3>
+      <span>${new Date(schedule.created).toLocaleDateString()}</span>
+      <div class="card-actions">
+        <button data-action="rename">✎</button>
+        <button data-action="delete">🗑</button>
+      </div>
+    `;
+
+    card.onclick = (e)=>{
+      if(e.target.dataset.action) return;
+      openSchedule(index);
+    };
+
+    const renameBtn = card.querySelector('[data-action="rename"]');
+    const deleteBtn = card.querySelector('[data-action="delete"]');
+
+    renameBtn.onclick = ()=>{
+      selectedScheduleIndex = index;
+      renameInput.value = schedules[index].name;
+      renameModal.classList.add("active");
+    };
+
+    deleteBtn.onclick = ()=>{
+      selectedScheduleIndex = index;
+      deleteModal.classList.add("active");
+    };
+
+    scheduleList.appendChild(card);
+  });
+}
+
+// CREAR HORARIO BOBO POR FA FUNCIONA
+
+createScheduleBtn.onclick = ()=>{
+  scheduleNameInput.value = "";
+  nameModal.classList.add("active");
+};
+
+confirmCreateBtn.onclick = ()=>{
+  const name = scheduleNameInput.value.trim();
+  if(!name) return alert("Debes escribir un nombre");
+
+  schedules.push({
+    name,
+    created: Date.now(),
+    subjects: []
+  });
+
+  saveData();
+  nameModal.classList.remove("active");
+  renderSchedules();
+};
+
+// RENOMBRAR HORARIO
+
+confirmRenameBtn.onclick = ()=>{
+  const name = renameInput.value.trim();
+  if(!name) return;
+
+  schedules[selectedScheduleIndex].name = name;
+  saveData();
+  renameModal.classList.remove("active");
+  renderSchedules();
+};
+
+// ELIMINAR HORARIO
+
+confirmDeleteBtn.onclick = ()=>{
+  schedules.splice(selectedScheduleIndex,1);
+  saveData();
+  deleteModal.classList.remove("active");
+  renderSchedules();
+};
+
+//CERRAR MODALES
+
+document.querySelectorAll(".close-btn").forEach(btn=>{
+  btn.onclick = ()=>{
+    const modal = btn.closest(".modal");
+
+    const duplicateBtn = modal.querySelector("#duplicateSubjectBtn");
+    if(duplicateBtn) duplicateBtn.remove();
+
+    modal.classList.remove("active");
+
+    if(modal.id === "subjectModal"){
+      resetSubjectModalState();
+      subjectNameInput.value = "";
+      subjectBlocksInput.value = "1";
+    }
+  };
+});
+
+// ORDENAMIENTO
+
+sortSelect.onchange = ()=>{
+  renderSchedules();
+};
+
+// ABRIR HORARIO
+
+const backHomeBtn = document.querySelector("#app header button");
+const scheduleTitle = document.querySelector("#app h2");
+
+function openSchedule(index){
+
+  if(index === null || schedules[index] === undefined) return;
+
+  currentScheduleIndex = index;
+  scheduleTitle.textContent = schedules[index].name;
+
+  homeView.classList.remove("active");
+  appView.classList.add("active");
+
+  buildScheduleTable();
+}
+
+// VOLVER AL HOME
+
+backHomeBtn.onclick = ()=>{
+  appView.classList.remove("active");
+  homeView.classList.add("active");
+};
+
+renderSchedules();
+
+function enforceMinZero(input){
+  input.addEventListener("input", () => {
+    if (input.value < 0) input.value = 0;
+  });
+}
+
+enforceMinZero(document.getElementById("snackCostInput"));
+enforceMinZero(document.getElementById("transportCostInput"));
+enforceMinZero(document.getElementById("gapBlocksInput"));
+
+</script>
+
+<script>
+
+// PARTE 3
+
+let editingSubjectIndex = null;
+
+// CONSTRUCCION TABLA
+
+const scheduleBody = document.querySelector("#schedule tbody");
+
+const monthSelect = document.getElementById("monthSelect");
+const yearInput = document.getElementById("yearInput");
+
+const snackInput = document.getElementById("snackCostInput");
+const transportInput = document.getElementById("transportCostInput");
+const gapInput = document.getElementById("gapBlocksInput");
+
+[yearInput, snackInput, transportInput, gapInput].forEach(input => {
+  input.addEventListener("input", updateCalculateButtonState);
+});
+
+const confirmMonthlyBtn = document.getElementById("confirmMonthlyCalculation");
+
+function validateMonthlyInputs(){
+  let valid = true;
+
+  const year = document.getElementById("yearInput");
+  const snack = document.getElementById("snackCostInput");
+  const transport = document.getElementById("transportCostInput");
+  const gap = document.getElementById("gapBlocksInput");
+
+  const yearError = document.getElementById("yearError");
+  const snackError = document.getElementById("snackError");
+  const transportError = document.getElementById("transportError");
+  const gapError = document.getElementById("gapError");
+
+  [year, snack, transport, gap].forEach(i => i.classList.remove("input-error"));
+  [yearError, snackError, transportError, gapError].forEach(e => e.textContent = "");
+
+  if(year.value !== ""){
+    if(year.value < 2020){
+      year.classList.add("input-error");
+      yearError.textContent = "El año debe ser 2020 o mayor.";
+      valid = false;
+    }
+  } 
+  else{
+    valid = false;
+  }
+
+  if(snack.value === "" || snack.value < 0){
+    snack.classList.add("input-error");
+    snackError.textContent = "La merienda no puede ser negativa.";
+    valid = false;
+  }
+
+  if(transport.value === "" || transport.value < 0){
+    transport.classList.add("input-error");
+    transportError.textContent = "El transporte no puede ser negativo.";
+    valid = false;
+  }
+
+  if(gap.value === "" || gap.value < 0){
+    gap.classList.add("input-error");
+    gapError.textContent = "El hueco mínimo no puede ser negativo.";
+    valid = false;
+  }
+
+  return valid;
+}
+
+function updateCalculateButtonState(){
+  const isValid = validateMonthlyInputs();
+  confirmMonthlyBtn.disabled = !isValid;
+}
+
+confirmMonthlyBtn.onclick = () => {
+
+  if(!validateMonthlyInputs()) return;
+
+  const result = calculateMonthlyCost();
+
+  if(!result) return;
+
+  const monthName = months[monthSelect.value];
+  const year = yearInput.value;
+
+  resultMonth.textContent = `Mes calculado: ${monthName} ${year}`;
+  resultTrips.textContent = `Total de viajes en el mes: ${result.trips}`;
+  resultTotal.innerHTML = `
+    Total del mes: <strong>${result.total.toLocaleString("es-CO")} COP</strong>
+  `;
+
+  monthlyResult.style.display = "block";
+};
+
+const months = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre"
+];
+
+function populateMonths(){
+  monthSelect.innerHTML = "";
+
+  months.forEach((month, index) => {
+    const option = document.createElement("option");
+    option.value = index;
+    option.textContent = month;
+    monthSelect.appendChild(option);
+  });
+
+  const today = new Date();
+  monthSelect.value = today.getMonth();
+  yearInput.value = today.getFullYear();
+}
+
+populateMonths();
+
+const subjectModal = document.getElementById("subjectModal");
+const subjectNameInput = subjectModal.querySelector("input[type='text']");
+const subjectColorInput = document.getElementById("subjectColorPicker");
+const colorPreview = document.getElementById("colorPreview");
+const subjectBlocksInput = subjectModal.querySelector("select");
+const saveSubjectBtn = subjectModal.querySelector("button:not(.close-btn)");
+
+function buildScheduleTable(){
+  scheduleBody.innerHTML = "";
+
+  const hours = [];
+  
+  let currentMinutes = 7 * 60;
+
+  while (true) {
+
+
+    if (currentMinutes === 12 * 60 + 50) {
+      currentMinutes += 10;
+    }
+
+    const start = formatTime(currentMinutes);
+    const endMinutes = currentMinutes + 50;
+    const end = formatTime(endMinutes);
+
+    hours.push(`${start} - ${end}`);
+
+    currentMinutes = endMinutes;
+
+    if (currentMinutes >= 18 * 60) break;
+  }
+
+  hours.forEach((h, row) => {
+    const tr = document.createElement("tr");
+
+    const timeTd = document.createElement("td");
+    timeTd.textContent = h;
+    timeTd.className = "time";
+    tr.appendChild(timeTd);
+
+    for(let col = 0; col < 6; col++){
+  const td = document.createElement("td");
+  td.className = "cell";
+  td.dataset.row = row;
+  td.dataset.col = col;
+
+  td.onclick = () => {
+    if(duplicatingSubject){
+      placeDuplicatedSubject(row, col);
+    }else{
+      openSubjectModal(row, col);
+    }
+  };
+
+  td.onmouseenter = () => {
+    if(!duplicatingSubject) return;
+
+    const oldGhost = td.querySelector(".ghost-subject");
+    if(oldGhost) oldGhost.remove();
+
+    const ghost = document.createElement("div");
+    ghost.className = "ghost-subject";
+    ghost.style.background = duplicatingSubject.color;
+    ghost.textContent = duplicatingSubject.name;
+    td.appendChild(ghost);
+};
+
+  td.onmouseleave = () => {
+    const ghost = td.querySelector(".ghost-subject");
+    if(ghost) ghost.remove();
+  };
+
+  tr.appendChild(td);
+}
+
+    scheduleBody.appendChild(tr);
+  });
+
+  renderSubjects();
+}
+
+function formatTime(totalMinutes){
+  let hours = Math.floor(totalMinutes / 60);
+  let minutes = totalMinutes % 60;
+
+  const period = hours >= 12 ? "PM" : "AM";
+  if (hours > 12) hours -= 12;
+  if (hours === 0) hours = 12;
+
+  return `${hours}:${minutes.toString().padStart(2,"0")} ${period}`;
+}
+
+calculateBtn.onclick = () => {
+  monthlyModal.classList.add("active");
+  updateCalculateButtonState();
+};
+
+// MODAL ASIGNATURA
+
+let duplicatingSubject = null;
+
+let currentCell = { row: null, col: null };
+
+function openSubjectModal(row, col){
+  const cell = document.querySelector(
+    `.cell[data-row="${row}"][data-col="${col}"]`
+  );
+
+  if(cell.classList.contains("blocked")) return; // blindaje total
+
+  currentCell = {row, col};
+  editingSubjectIndex = null;
+
+  subjectNameInput.value = "";
+  subjectColorInput.value = "#1d4ed8";
+  colorPreview.style.background = subjectColorInput.value;
+  subjectBlocksInput.value = "1";
+  saveSubjectBtn.textContent = "Guardar asignatura";
+
+  const deleteBtn = subjectModal.querySelector("#deleteSubjectBtn");
+  if(deleteBtn) deleteBtn.remove();
+
+  subjectModal.classList.add("active");
+}
+
+function setDuplicateCursor(active){
+  document.body.style.cursor = active ? "copy" : "default";
+  duplicateBar.style.display = active ? "flex" : "none";
+}
+
+function resetSubjectModalState(){
+  duplicatingSubject = null;
+  editingSubjectIndex = null;
+  currentCell = { row: null, col: null };
+  setDuplicateCursor(false);
+}
+
+function createDeleteButton(){
+  const deleteBtn = document.createElement("button");
+  deleteBtn.id = "deleteSubjectBtn";
+  deleteBtn.textContent = "Eliminar asignatura";
+  deleteBtn.style.background = "#b00020";
+  deleteBtn.style.marginTop = "6px";
+  deleteBtn.onclick = deleteSubject;
+  return deleteBtn;
+}
+
+function createDuplicateButton(subject){
+  const duplicateBtn = document.createElement("button");
+  duplicateBtn.id = "duplicateSubjectBtn";
+  duplicateBtn.textContent = "Duplicar asignatura";
+  duplicateBtn.style.background = "#0066cc";
+  duplicateBtn.style.marginTop = "6px";
+  duplicateBtn.onclick = () => duplicateSubject(subject);
+  return duplicateBtn;
+}
+
+function openEditSubjectModal(subject){
+
+  resetSubjectModalState();
+
+  editingSubjectIndex = schedules[currentScheduleIndex].subjects.indexOf(subject);
+
+  currentCell = { row: subject.row, col: subject.col };
+
+  subjectNameInput.value = subject.name;
+  subjectColorInput.value = subject.color;
+  colorPreview.style.background = subject.color;
+  subjectBlocksInput.value = subject.blocks;
+
+  subjectModal.classList.add("active");
+  saveSubjectBtn.textContent = "Guardar cambios";
+
+  const modalContent = subjectModal.querySelector(".modal-content");
+
+  const oldDelete = modalContent.querySelector("#deleteSubjectBtn");
+  if(oldDelete) oldDelete.remove();
+
+  const oldDuplicate = modalContent.querySelector("#duplicateSubjectBtn");
+  if(oldDuplicate) oldDuplicate.remove();
+
+  modalContent.appendChild(createDeleteButton());
+  modalContent.appendChild(createDuplicateButton(subject));
+}
+
+subjectColorInput.oninput = () => {
+  colorPreview.style.background = subjectColorInput.value;
+};
+
+// GUARDAR ASIGNATURA
+
+saveSubjectBtn.onclick = ()=>{
+
+  if(currentCell.row === null || currentCell.col === null){
+    alert("Primero selecciona una celda del horario.");
+    return;
+  }
+
+  if(currentScheduleIndex === null) return;
+
+  const name = subjectNameInput.value.trim();
+  const color = subjectColorInput.value;
+  const blocks = parseInt(subjectBlocksInput.value);
+
+  if(!name) return alert("Nombre obligatorio");
+
+  const schedule = schedules[currentScheduleIndex];
+
+  let originalSubject = null;
+  if(editingSubjectIndex !== null){
+    originalSubject = schedule.subjects.splice(editingSubjectIndex,1)[0];
+  }
+
+  if(currentCell.row + blocks > document.querySelectorAll("#schedule tbody tr").length){
+    alert("La asignatura excede el horario disponible");
+    if(originalSubject) schedule.subjects.splice(editingSubjectIndex,0,originalSubject);
+    return;
+  }
+
+  for(let i = 0; i < blocks; i++){
+    const r = currentCell.row + i;
+    const c = currentCell.col;
+
+    const conflict = schedule.subjects.some(s=>{
+      for(let b = 0; b < s.blocks; b++){
+        if(s.col === c && s.row + b === r){
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if(conflict){
+      alert("Ese espacio ya está ocupado por otra asignatura");
+      if(originalSubject) schedule.subjects.splice(editingSubjectIndex,0,originalSubject);
+      return;
+    }
+  }
+
+  const newSubject = {
+  name,
+  color,
+  row: currentCell.row,
+  col: currentCell.col,
+  blocks
+};
+
+  schedule.subjects.push(newSubject);
+
+  saveData();
+  subjectModal.classList.remove("active");
+  editingSubjectIndex = null;
+  saveSubjectBtn.textContent = "Guardar asignatura";
+
+  const deleteBtn = subjectModal.querySelector("#deleteSubjectBtn");
+  if(deleteBtn) deleteBtn.remove();
+
+  const duplicateBtn = subjectModal.querySelector("#duplicateSubjectBtn");
+  if(duplicateBtn) duplicateBtn.remove();
+
+  buildScheduleTable();
+};
+
+function deleteSubject(){
+  const schedule = schedules[currentScheduleIndex];
+  if(editingSubjectIndex === null) return;
+
+  schedule.subjects.splice(editingSubjectIndex,1);
+  saveData();
+
+  subjectModal.classList.remove("active");
+  editingSubjectIndex = null;
+  saveSubjectBtn.textContent = "Guardar asignatura";
+
+  const deleteBtn = subjectModal.querySelector("#deleteSubjectBtn");
+  if(deleteBtn) deleteBtn.remove();
+
+  const duplicateBtn = subjectModal.querySelector("#duplicateSubjectBtn");
+  if(duplicateBtn) duplicateBtn.remove();
+
+  buildScheduleTable();
+}
+
+function duplicateSubject(subject){
+  subjectModal.classList.remove("active");
+
+  duplicatingSubject = {
+    name: subject.name,
+    color: subject.color,
+    blocks: subject.blocks
+  };
+
+  setDuplicateCursor(true);
+}
+
+setDuplicateCursor(false);
+
+function placeDuplicatedSubject(row, col){
+  const schedule = schedules[currentScheduleIndex];
+
+  const blocks = duplicatingSubject.blocks;
+
+  if(row + blocks > document.querySelectorAll("#schedule tbody tr").length){
+    alert("La asignatura excede el horario disponible");
+    duplicatingSubject = null;
+    setDuplicateCursor(false);
+    return;
+  }
+
+  for(let i = 0; i < blocks; i++){
+    const r = row + i;
+    const c = col;
+
+    const conflict = schedule.subjects.some(s=>{
+      for(let b = 0; b < s.blocks; b++){
+        if(s.col === c && s.row + b === r){
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if(conflict){
+      alert("Ese espacio ya está ocupado por otra asignatura");
+      return;
+    }
+  }
+
+  const newSubject = {
+    name: duplicatingSubject.name,
+    color: duplicatingSubject.color,
+    row,
+    col,
+    blocks: duplicatingSubject.blocks
+  };
+
+  schedule.subjects.push(newSubject);
+  saveData();
+  buildScheduleTable();
+
+  resetSubjectModalState();
+}
+
+// DIBUJAR ASIGNATURAS
+
+function renderSubjects(){
+
+  document.querySelectorAll(".subject").forEach(s => s.remove());
+  document.querySelectorAll(".cell.blocked").forEach(c => {
+    c.classList.remove("blocked");
+  });
+
+  if(currentScheduleIndex === null) return;
+
+  const schedule = schedules[currentScheduleIndex];
+
+  schedule.subjects.forEach(sub=>{
+
+    const baseCell = document.querySelector(
+  `.cell[data-row="${sub.row}"][data-col="${sub.col}"]`
+  );
+
+  if(!baseCell) return;
+
+  let totalHeight = 0;
+
+  const div = document.createElement("div");
+  div.className = "subject";
+  div.style.background = "transparent"; // el color pasa al contenido interno
+
+  const content = document.createElement("div");
+  content.className = "subject-content";
+  content.textContent = sub.name;
+  content.style.background = sub.color;
+
+  div.appendChild(content);
+
+  div.style.position = "absolute";
+  div.style.top = "0px";
+  div.style.left = "0px";
+  
+  for(let i = 0; i < sub.blocks; i++){
+    const cell = document.querySelector(
+      `.cell[data-row="${sub.row + i}"][data-col="${sub.col}"]`
+    );
+    if(cell){
+      totalHeight += cell.offsetHeight;
+    }
+  }
+
+  div.style.height = totalHeight + "px";
+  div.style.boxSizing = "border-box";
+  div.style.zIndex = "2";
+
+  div.onclick = (e) => {
+    e.stopPropagation();
+    openEditSubjectModal(sub);
+  };
+
+for(let i = 1; i < sub.blocks; i++){
+  const coveredCell = document.querySelector(
+    `.cell[data-row="${sub.row + i}"][data-col="${sub.col}"]`
+  );
+  if(coveredCell){
+    coveredCell.classList.add("blocked");
+  }
+} 
+
+  baseCell.appendChild(div);
+
+  });
+}
+
+function calculateDayCost(dayIndex, snackCost, transportCost, minGapBlocks){
+  if(currentScheduleIndex === null) return { cost: 0, trips: 0 };
+
+  const schedule = schedules[currentScheduleIndex];
+  const daySubjects = schedule.subjects
+    .filter(s => s.col === dayIndex)
+    .sort((a,b) => a.row - b.row);
+
+  if(daySubjects.length === 0){
+    return { cost: 0, trips: 0 };
+  }
+
+  let trips = 1;
+
+  if(minGapBlocks !== null && minGapBlocks > 0){
+    for(let i = 0; i < daySubjects.length - 1; i++){
+      const currentEnd = daySubjects[i].row + daySubjects[i].blocks;
+      const nextStart = daySubjects[i + 1].row;
+      const gap = nextStart - currentEnd;
+
+      if(gap >= minGapBlocks){
+        trips++;
+      }
+    }
+  }
+
+  const cost = snackCost + (transportCost * trips);
+
+  return { cost, trips };
+}
+
+function getEasterDate(year){
+  const f = Math.floor,
+        G = year % 19,
+        C = f(year / 100),
+        H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30,
+        I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)),
+        J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7,
+        L = I - J,
+        month = 3 + f((L + 40) / 44),
+        day = L + 28 - 31 * f(month / 4);
+  return new Date(year, month - 1, day);
+}
+
+function moveToMonday(date){
+  const day = date.getDay();
+  if(day === 1) return date;
+  const diff = (8 - day) % 7;
+  date.setDate(date.getDate() + diff);
+  return date;
+}
+
+function generateColombianHolidays(year){
+  const holidays = [];
+
+  holidays.push(new Date(year, 4, 1));  // Día del Trabajo (1 de mayo)
+  holidays.push(new Date(year, 6, 20)); // Independencia
+  holidays.push(new Date(year, 7, 7));  // Batalla de Boyacá
+  holidays.push(new Date(year, 11, 8)); // Inmaculada Concepción
+  holidays.push(new Date(year, 11, 25)); // Navidad
+
+  holidays.push(moveToMonday(new Date(year, 0, 1))); // Año Nuevo
+  holidays.push(moveToMonday(new Date(year, 0, 6))); // Epifanía
+  holidays.push(moveToMonday(new Date(year, 2, 19))); // San José
+  holidays.push(moveToMonday(new Date(year, 5, 29))); // San Pedro y San Pablo
+  holidays.push(moveToMonday(new Date(year, 7, 15))); // Asunción
+  holidays.push(moveToMonday(new Date(year, 9, 12))); // Día de la Raza
+  holidays.push(moveToMonday(new Date(year, 10, 1))); // Todos los Santos
+  holidays.push(moveToMonday(new Date(year, 10, 11))); // Independencia de Cartagena
+
+  const easter = getEasterDate(year);
+
+  const holyThursday = new Date(easter);
+  holyThursday.setDate(easter.getDate() - 3);
+
+  const goodFriday = new Date(easter);
+  goodFriday.setDate(easter.getDate() - 2);
+
+  holidays.push(holyThursday);
+  holidays.push(goodFriday);
+
+  const ascension = moveToMonday(new Date(easter.getTime() + 43 * 86400000));
+  const corpusChristi = moveToMonday(new Date(easter.getTime() + 64 * 86400000));
+  const sacredHeart = moveToMonday(new Date(easter.getTime() + 71 * 86400000));
+
+  holidays.push(ascension);
+  holidays.push(corpusChristi);
+  holidays.push(sacredHeart);
+
+  return holidays;
+}
+
+let holidayCache = {};
+
+function isHoliday(date){
+  const year = date.getFullYear();
+
+  if(!holidayCache[year]){
+    holidayCache[year] = generateColombianHolidays(year);
+  }
+
+  return holidayCache[year].some(h =>
+    h.toDateString() === date.toDateString()
+  );
+}
+
+function hasClassesThatDay(weekDayIndex){
+  const schedule = schedules[currentScheduleIndex];
+  return schedule.subjects.some(s => s.col === weekDayIndex);
+}
+
+function calculateMonthlyCost(){
+  if(currentScheduleIndex === null) return;
+
+  const month = parseInt(monthSelect.value);
+  const year = parseInt(yearInput.value);
+
+  const snackCost = parseFloat(document.getElementById("snackCostInput").value) || 0;
+  const transportCost = parseFloat(document.getElementById("transportCostInput").value) || 0;
+  const minGapBlocks = parseInt(document.getElementById("gapBlocksInput").value) || 0;
+
+  let total = 0;
+  let totalTrips = 0;
+  let detail = [];
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  for(let day = 1; day <= daysInMonth; day++){
+    const date = new Date(year, month, day);
+    const weekDay = date.getDay(); 
+
+    if(weekDay === 0) continue;
+
+    const scheduleDayIndex = weekDay - 1;
+
+    if(isHoliday(date)) continue;
+
+    if(!hasClassesThatDay(scheduleDayIndex)) continue;
+
+    const dayData = calculateDayCost(
+      scheduleDayIndex,
+      snackCost,
+      transportCost,
+      minGapBlocks > 0 ? minGapBlocks : null
+    );
+
+    total += dayData.cost;
+    totalTrips += dayData.trips;
+
+
+    detail.push({
+      date: date.toLocaleDateString(),
+      cost: dayData.cost,
+      trips: dayData.trips
+    });
+  }
+
+  return {
+    total,
+    trips: totalTrips,
+    detail
+  };
+
+}
+
+// EXPORTAR IMAGEN
+
+document.getElementById("exportBtn").onclick = () => {
+  const target = document.getElementById("scheduleContainer");
+
+  if (currentScheduleIndex === null) return;
+
+  let scheduleName = schedules[currentScheduleIndex].name;
+
+  scheduleName = scheduleName
+    .replace(/[\\/:*?"<>|]/g, "")
+    .replace(/\s+/g, "_")
+    .toLowerCase();
+
+  html2canvas(target, {
+    backgroundColor: "#ffffff",
+    scale: 2
+  }).then(canvas => {
+    const link = document.createElement("a");
+    link.href = canvas.toDataURL("image/png");
+    link.download = `${scheduleName}.png`;
+    link.click();
+  });
+};
+
+if(currentScheduleIndex !== null){
+  buildScheduleTable();
+}
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && duplicatingSubject) {
+    duplicatingSubject = null;
+    setDuplicateCursor(false);
+  }
+});
+
+</script>
+</body>
+</html>
