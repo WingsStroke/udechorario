@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Horarios Académicos</title>
+<title>Gestor de Horarios Académicos</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 
 <style>
@@ -291,6 +291,11 @@ button:disabled{
   cursor:not-allowed;
   opacity:0.6;
 }
+.cell.active-cell {
+  outline: 3px solid #46E563;
+  outline-offset: -2px;
+  background-color: rgba(70, 229, 99, 0.15);
+}
 
 </style>
 </head>
@@ -502,6 +507,13 @@ closeMonthlyResultBtn.onclick = () => {
   monthlyResult.style.display = "none";
 };
 
+function resetSubjectModalState(){
+  duplicatingSubject = null;
+  editingSubjectIndex = null;
+  clearCurrentCell();
+  setDuplicateCursor(false);
+}
+
 cancelDuplicateBtn.onclick = () => {
   resetSubjectModalState();
 };
@@ -708,6 +720,7 @@ enforceMinZero(document.getElementById("gapBlocksInput"));
 // PARTE 3
 
 let editingSubjectIndex = null;
+let cellMatrix = [];
 
 // CONSTRUCCION TABLA
 
@@ -726,7 +739,8 @@ const gapInput = document.getElementById("gapBlocksInput");
 
 const confirmMonthlyBtn = document.getElementById("confirmMonthlyCalculation");
 
-function validateMonthlyInputs(){
+function validateMonthlyInputs(showErrors = false){
+
   let valid = true;
 
   const year = document.getElementById("yearInput");
@@ -739,35 +753,54 @@ function validateMonthlyInputs(){
   const transportError = document.getElementById("transportError");
   const gapError = document.getElementById("gapError");
 
-  [year, snack, transport, gap].forEach(i => i.classList.remove("input-error"));
-  [yearError, snackError, transportError, gapError].forEach(e => e.textContent = "");
+  [year, snack, transport, gap].forEach(i => {
+    if(showErrors){
+      i.classList.remove("input-error");
+    }
+  });
+
+  [yearError, snackError, transportError, gapError].forEach(e => {
+    if(showErrors){
+      e.textContent = "";
+    }
+  });
 
   if(year.value !== ""){
     if(year.value < 2020){
-      year.classList.add("input-error");
-      yearError.textContent = "El año debe ser 2020 o mayor.";
+      if(showErrors){
+        year.classList.add("input-error");
+        yearError.textContent = "El año debe ser 2020 o mayor.";
+      }
       valid = false;
     }
   } 
-  else{
+  else {
     valid = false;
   }
 
   if(snack.value === "" || snack.value < 0){
-    snack.classList.add("input-error");
-    snackError.textContent = "La merienda no puede ser negativa.";
+    if(showErrors){
+      snack.classList.add("input-error");
+      snackError.textContent = "La merienda no puede ser negativa.";
+    }
     valid = false;
   }
 
   if(transport.value === "" || transport.value < 0){
-    transport.classList.add("input-error");
-    transportError.textContent = "El transporte no puede ser negativo.";
+
+    if(showErrors){
+      transport.classList.add("input-error");
+      transportError.textContent = "El transporte no puede ser negativo.";
+    }
     valid = false;
   }
 
   if(gap.value === "" || gap.value < 0){
-    gap.classList.add("input-error");
-    gapError.textContent = "El hueco mínimo no puede ser negativo.";
+
+    if(showErrors){
+      gap.classList.add("input-error");
+      gapError.textContent = "El hueco mínimo no puede ser negativo.";
+    }
     valid = false;
   }
 
@@ -775,13 +808,13 @@ function validateMonthlyInputs(){
 }
 
 function updateCalculateButtonState(){
-  const isValid = validateMonthlyInputs();
+  const isValid = validateMonthlyInputs(false);
   confirmMonthlyBtn.disabled = !isValid;
 }
 
 confirmMonthlyBtn.onclick = () => {
 
-  if(!validateMonthlyInputs()) return;
+  if(!validateMonthlyInputs(true)) return;
 
   const result = calculateMonthlyCost();
 
@@ -792,6 +825,18 @@ confirmMonthlyBtn.onclick = () => {
 
   resultMonth.textContent = `Mes calculado: ${monthName} ${year}`;
   resultTrips.textContent = `Total de viajes en el mes: ${result.trips}`;
+
+  const snackFormatted = result.snackTotal.toLocaleString("es-CO");
+
+  const oldSnack = monthlyResult.querySelector("#snackResult");
+  if(oldSnack) oldSnack.remove();
+
+  const resultSnack = document.createElement("p");
+  resultSnack.id = "snackResult";
+  resultSnack.textContent = `Total de merienda del mes: ${snackFormatted} COP`;
+
+  monthlyResult.insertBefore(resultSnack, resultTotal);
+
   resultTotal.innerHTML = `
     Total del mes: <strong>${result.total.toLocaleString("es-CO")} COP</strong>
   `;
@@ -839,15 +884,14 @@ const subjectBlocksInput = subjectModal.querySelector("select");
 const saveSubjectBtn = subjectModal.querySelector("button:not(.close-btn)");
 
 function buildScheduleTable(){
+
   scheduleBody.innerHTML = "";
+  cellMatrix = [];
 
   const hours = [];
-  
   let currentMinutes = 7 * 60;
 
   while (true) {
-
-
     if (currentMinutes === 12 * 60 + 50) {
       currentMinutes += 10;
     }
@@ -857,7 +901,6 @@ function buildScheduleTable(){
     const end = formatTime(endMinutes);
 
     hours.push(`${start} - ${end}`);
-
     currentMinutes = endMinutes;
 
     if (currentMinutes >= 18 * 60) break;
@@ -871,40 +914,44 @@ function buildScheduleTable(){
     timeTd.className = "time";
     tr.appendChild(timeTd);
 
+    cellMatrix[row] = [];
+
     for(let col = 0; col < 6; col++){
-  const td = document.createElement("td");
-  td.className = "cell";
-  td.dataset.row = row;
-  td.dataset.col = col;
+      const td = document.createElement("td");
+      td.className = "cell";
+      td.dataset.row = row;
+      td.dataset.col = col;
 
-  td.onclick = () => {
-    if(duplicatingSubject){
-      placeDuplicatedSubject(row, col);
-    }else{
-      openSubjectModal(row, col);
+      cellMatrix[row][col] = td;
+
+      td.onclick = () => {
+        if(duplicatingSubject){
+          placeDuplicatedSubject(row, col);
+        } else {
+          openSubjectModal(row, col);
+        }
+      };
+
+      td.onmouseenter = () => {
+        if(!duplicatingSubject) return;
+
+        const oldGhost = td.querySelector(".ghost-subject");
+        if(oldGhost) oldGhost.remove();
+
+        const ghost = document.createElement("div");
+        ghost.className = "ghost-subject";
+        ghost.style.background = duplicatingSubject.color;
+        ghost.textContent = duplicatingSubject.name;
+        td.appendChild(ghost);
+      };
+
+      td.onmouseleave = () => {
+        const ghost = td.querySelector(".ghost-subject");
+        if(ghost) ghost.remove();
+      };
+
+      tr.appendChild(td);
     }
-  };
-
-  td.onmouseenter = () => {
-    if(!duplicatingSubject) return;
-
-    const oldGhost = td.querySelector(".ghost-subject");
-    if(oldGhost) oldGhost.remove();
-
-    const ghost = document.createElement("div");
-    ghost.className = "ghost-subject";
-    ghost.style.background = duplicatingSubject.color;
-    ghost.textContent = duplicatingSubject.name;
-    td.appendChild(ghost);
-};
-
-  td.onmouseleave = () => {
-    const ghost = td.querySelector(".ghost-subject");
-    if(ghost) ghost.remove();
-  };
-
-  tr.appendChild(td);
-}
 
     scheduleBody.appendChild(tr);
   });
@@ -932,16 +979,64 @@ calculateBtn.onclick = () => {
 
 let duplicatingSubject = null;
 
-let currentCell = { row: null, col: null };
+let currentCell = null;
+
+function highlightCurrentCell(subject = null) {
+
+  document
+    .querySelectorAll(".cell.active-cell")
+    .forEach(c => c.classList.remove("active-cell"));
+
+  if (subject) {
+    for (let i = 0; i < subject.blocks; i++) {
+      const cell = cellMatrix[subject.row + i]?.[subject.col];
+      if (cell) {
+        cell.classList.add("active-cell");
+      }
+    }
+    return;
+  }
+
+  if (!hasCurrentCell()) return;
+
+  const { row, col } = currentCell;
+  const cell = cellMatrix[row]?.[col];
+  if (cell) {
+    cell.classList.add("active-cell");
+  }
+}
+
+function setCurrentCell(row, col){
+  if (typeof row !== "number" || typeof col !== "number" || row < 0 || col < 0){
+
+    clearCurrentCell();
+    return;
+
+  }
+
+  currentCell = { row, col };
+  highlightCurrentCell();
+}
+
+function clearCurrentCell(){
+  currentCell = null;
+
+  document
+    .querySelectorAll(".cell.active-cell")
+    .forEach(c => c.classList.remove("active-cell"));
+}
+
+function hasCurrentCell(){
+  return currentCell !== null;
+}
 
 function openSubjectModal(row, col){
-  const cell = document.querySelector(
-    `.cell[data-row="${row}"][data-col="${col}"]`
-  );
+
+  const cell = cellMatrix[row][col];
 
   if(cell.classList.contains("blocked")) return; // blindaje total
 
-  currentCell = {row, col};
+  setCurrentCell(row, col);
   editingSubjectIndex = null;
 
   subjectNameInput.value = "";
@@ -954,18 +1049,12 @@ function openSubjectModal(row, col){
   if(deleteBtn) deleteBtn.remove();
 
   subjectModal.classList.add("active");
+
 }
 
 function setDuplicateCursor(active){
   document.body.style.cursor = active ? "copy" : "default";
   duplicateBar.style.display = active ? "flex" : "none";
-}
-
-function resetSubjectModalState(){
-  duplicatingSubject = null;
-  editingSubjectIndex = null;
-  currentCell = { row: null, col: null };
-  setDuplicateCursor(false);
 }
 
 function createDeleteButton(){
@@ -994,7 +1083,7 @@ function openEditSubjectModal(subject){
 
   editingSubjectIndex = schedules[currentScheduleIndex].subjects.indexOf(subject);
 
-  currentCell = { row: subject.row, col: subject.col };
+  setCurrentCell(subject.row, subject.col);
 
   subjectNameInput.value = subject.name;
   subjectColorInput.value = subject.color;
@@ -1014,6 +1103,8 @@ function openEditSubjectModal(subject){
 
   modalContent.appendChild(createDeleteButton());
   modalContent.appendChild(createDuplicateButton(subject));
+
+  highlightCurrentCell(subject);
 }
 
 subjectColorInput.oninput = () => {
@@ -1024,7 +1115,7 @@ subjectColorInput.oninput = () => {
 
 saveSubjectBtn.onclick = ()=>{
 
-  if(currentCell.row === null || currentCell.col === null){
+  if(!hasCurrentCell()){
     alert("Primero selecciona una celda del horario.");
     return;
   }
@@ -1176,6 +1267,21 @@ function placeDuplicatedSubject(row, col){
 
 // DIBUJAR ASIGNATURAS
 
+function getSubjectPixelHeight(subject){
+  let height = 0;
+
+  for(let i = 0; i < subject.blocks; i++){
+
+    const cell = cellMatrix[subject.row + i]?.[subject.col];
+
+    if(cell){
+      height += cell.offsetHeight;
+    }
+  }
+
+  return height;
+}
+
 function renderSubjects(){
 
   document.querySelectorAll(".subject").forEach(s => s.remove());
@@ -1187,56 +1293,42 @@ function renderSubjects(){
 
   const schedule = schedules[currentScheduleIndex];
 
-  schedule.subjects.forEach(sub=>{
+  schedule.subjects.forEach(sub => {
 
-    const baseCell = document.querySelector(
-  `.cell[data-row="${sub.row}"][data-col="${sub.col}"]`
-  );
+    const baseCell = cellMatrix[sub.row]?.[sub.col];
+    if(!baseCell) return;
 
-  if(!baseCell) return;
+    const div = document.createElement("div");
+    div.className = "subject";
+    div.style.background = "transparent"; // el color pasa al contenido interno
 
-  let totalHeight = 0;
+    const content = document.createElement("div");
+    content.className = "subject-content";
+    content.textContent = sub.name;
+    content.style.background = sub.color;
 
-  const div = document.createElement("div");
-  div.className = "subject";
-  div.style.background = "transparent"; // el color pasa al contenido interno
+    div.appendChild(content);
 
-  const content = document.createElement("div");
-  content.className = "subject-content";
-  content.textContent = sub.name;
-  content.style.background = sub.color;
-
-  div.appendChild(content);
-
-  div.style.position = "absolute";
-  div.style.top = "0px";
-  div.style.left = "0px";
+    div.style.position = "absolute";
+    div.style.top = "0px";
+    div.style.left = "0px";
   
-  for(let i = 0; i < sub.blocks; i++){
-    const cell = document.querySelector(
-      `.cell[data-row="${sub.row + i}"][data-col="${sub.col}"]`
-    );
-    if(cell){
-      totalHeight += cell.offsetHeight;
-    }
-  }
+    div.style.height = getSubjectPixelHeight(sub) + "px";
+    div.style.boxSizing = "border-box";
+    div.style.zIndex = "2";
 
-  div.style.height = totalHeight + "px";
-  div.style.boxSizing = "border-box";
-  div.style.zIndex = "2";
-
-  div.onclick = (e) => {
+    div.onclick = (e) => {
     e.stopPropagation();
     openEditSubjectModal(sub);
   };
 
 for(let i = 1; i < sub.blocks; i++){
-  const coveredCell = document.querySelector(
-    `.cell[data-row="${sub.row + i}"][data-col="${sub.col}"]`
-  );
+
+  const coveredCell = cellMatrix[sub.row + i]?.[sub.col];
   if(coveredCell){
     coveredCell.classList.add("blocked");
   }
+
 } 
 
   baseCell.appendChild(div);
@@ -1304,8 +1396,8 @@ function generateColombianHolidays(year){
   holidays.push(new Date(year, 7, 7));  // Batalla de Boyacá
   holidays.push(new Date(year, 11, 8)); // Inmaculada Concepción
   holidays.push(new Date(year, 11, 25)); // Navidad
+  holidays.push(new Date(year, 0, 1)); // Año Nuevo
 
-  holidays.push(moveToMonday(new Date(year, 0, 1))); // Año Nuevo
   holidays.push(moveToMonday(new Date(year, 0, 6))); // Epifanía
   holidays.push(moveToMonday(new Date(year, 2, 19))); // San José
   holidays.push(moveToMonday(new Date(year, 5, 29))); // San Pedro y San Pablo
@@ -1367,6 +1459,7 @@ function calculateMonthlyCost(){
 
   let total = 0;
   let totalTrips = 0;
+  let totalSnack = 0;
   let detail = [];
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -1382,6 +1475,8 @@ function calculateMonthlyCost(){
     if(isHoliday(date)) continue;
 
     if(!hasClassesThatDay(scheduleDayIndex)) continue;
+
+    totalSnack += snackCost;
 
     const dayData = calculateDayCost(
       scheduleDayIndex,
@@ -1404,6 +1499,7 @@ function calculateMonthlyCost(){
   return {
     total,
     trips: totalTrips,
+    snackTotal: totalSnack,
     detail
   };
 
