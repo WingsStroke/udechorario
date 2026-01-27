@@ -12,5 +12,14 @@
     "changes": [
       "Botón 'Changelog' añadido"
     ]
+  },
+  {
+    "version": "1.0.2",
+    "date": "2026-01-21",
+    "changes": [
+      "Opción para exportar horario a formato UdeC para matriculas",
+      "Opción para exportar horario a JSON",
+      "Se arregló un bug de duplicación"
+    ]
   }
 ]
