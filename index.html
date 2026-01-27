@@ -383,6 +383,8 @@ button:disabled{
     <h1>Mis Horarios</h1>
     <div style="display:flex; gap:10px;">
       <button id="createScheduleBtn">+ Nuevo horario</button>
+      <button id="importSchedulesBtn">Importar</button>
+      <input type="file" id="importFileInput" accept=".json" hidden>
       <button id="changelogBtn" style="position:relative;">
         Changelog
         <span id="changelogAlert" style="
@@ -426,6 +428,8 @@ button:disabled{
   </header>
 
   <div class="actions">
+    <button id="exportScheduleBtn">Exportar JSON</button>
+    <button id="exportPdfBtn">Exportar formato UdeC (PDF)</button>
     <button id="exportBtn">Exportar como imagen</button>
     <button id="calculateMonthlyBtn">Calcular Aguinaldo</button>
   </div>
@@ -492,6 +496,12 @@ button:disabled{
 
     <label>Nombre</label>
     <input type="text">
+
+    <label>Grupo</label>
+    <input type="text" id="subjectGroupInput" placeholder="Ej: A1">
+
+    <label>Programa</label>
+    <input type="text" id="subjectProgramInput" placeholder="Ej: Ingeniería de Sistemas">
 
     <label>Color</label>
     <div style="display:flex;align-items:center;gap:10px;">
@@ -593,6 +603,9 @@ button:disabled{
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
 <script>
 
 // PARTE 2
@@ -669,15 +682,12 @@ function renderChangelog(changelogData){
 function checkChangelogVersion(changelogData){
   if(!Array.isArray(changelogData) || changelogData.length === 0) return;
 
-  // Suponemos que la versión más reciente es la última del array
   const latestVersion = changelogData[changelogData.length - 1].version;
   const lastSeenVersion = localStorage.getItem(LAST_VERSION_KEY);
 
   if(lastSeenVersion !== latestVersion){
-    // Hay una nueva versión
     changelogAlert.style.display = "inline-flex";
   }else{
-    // Todo está al día
     changelogAlert.style.display = "none";
   }
 }
@@ -742,6 +752,34 @@ function saveData(){
 }
 
 // RENDER DE HORARIOS FUNCIONA YA
+
+function normalizeSubject(subject){
+  return {
+    id: subject.id || crypto.randomUUID(),
+    name: subject.name || "",
+    color: subject.color || "#1d4ed8",
+    row: subject.row,
+    col: subject.col,
+    blocks: subject.blocks,
+    group: subject.group || "",
+    program: subject.program || ""
+  };
+}
+
+function openSchedule(index){
+
+  if(index === null || schedules[index] === undefined) return;
+
+  currentScheduleIndex = index;
+  scheduleTitle.textContent = schedules[index].name;
+
+  homeView.classList.remove("active");
+  appView.classList.add("active");
+
+  schedules[index].subjects = schedules[index].subjects.map(normalizeSubject);
+  saveData();
+  buildScheduleTable();
+}
 
 function renderSchedules(){
   scheduleList.innerHTML = "";
@@ -874,19 +912,6 @@ sortSelect.onchange = ()=>{
 const backHomeBtn = document.querySelector("#app header button");
 const scheduleTitle = document.querySelector("#app h2");
 
-function openSchedule(index){
-
-  if(index === null || schedules[index] === undefined) return;
-
-  currentScheduleIndex = index;
-  scheduleTitle.textContent = schedules[index].name;
-
-  homeView.classList.remove("active");
-  appView.classList.add("active");
-
-  buildScheduleTable();
-}
-
 // VOLVER AL HOME
 
 backHomeBtn.onclick = ()=>{
@@ -916,6 +941,141 @@ loadChangelog();
 
 let editingSubjectIndex = null;
 let cellMatrix = [];
+
+// EXTRAER DIAS Y HORAS DE CELDA
+
+const fullDays = [
+  "Lunes",
+  "Martes",
+  "Miércoles",
+  "Jueves",
+  "Viernes",
+  "Sábado"
+];
+
+function getTimeFromRow(rowIndex) {
+  const rows = document.querySelectorAll("#schedule tbody tr");
+
+  if (!rows[rowIndex]) return null;
+
+  const timeText = rows[rowIndex].querySelector(".time").textContent;
+  const [start] = timeText.split(" - ");
+
+  return {
+    start: start.trim()
+  };
+}
+
+function getEndTimeFromRow(rowIndex) {
+  const rows = document.querySelectorAll("#schedule tbody tr");
+
+  if (!rows[rowIndex]) return null;
+
+  const timeText = rows[rowIndex].querySelector(".time").textContent;
+  const [, end] = timeText.split(" - ");
+
+  return end.trim();
+}
+
+function getSubjectScheduleText(subject) {
+  const dayName = fullDays[subject.col];
+
+  const startRow = subject.row;
+  const endRow = subject.row + subject.blocks - 1;
+
+  const startTime = getTimeFromRow(startRow)?.start;
+  const endTime = getEndTimeFromRow(endRow);
+
+  if (!startTime || !endTime) return "";
+
+  return `${dayName} ${startTime} - ${endTime}`;
+}
+
+function buildSubjectsScheduleData() {
+  if (currentScheduleIndex === null) return [];
+
+  const schedule = schedules[currentScheduleIndex];
+  const map = {};
+
+  schedule.subjects.forEach(subject => {
+    const scheduleText = getSubjectScheduleText(subject);
+
+    const key = `${subject.name}||${subject.group}||${subject.program}`;
+
+    if (!map[key]) {
+      map[key] = {
+      name: subject.name,
+      group: subject.group || "",
+      program: subject.program || "",
+      times: []
+      };
+    }
+
+    map[key].times.push(scheduleText);
+
+  });
+
+  return Object.values(map).map(item => ({
+    name: item.name,
+    schedule: item.times.join(" / "),
+    group: item.group,
+    program: item.program
+  }));
+}
+
+function exportUniversityPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  const headers = [[
+    "Asignatura",
+    "Horario",
+    "Grupo",
+    "Programa"
+  ]];
+
+  const body = buildSubjectsScheduleData().map(item => [
+    item.name,
+    item.schedule,
+    item.group || "",
+    item.program || ""
+  ]);
+
+  doc.autoTable({
+    startY: 10,
+    head: headers,
+    body: body,
+    styles: {
+      fontSize: 10,
+      cellPadding: 3,
+      valign: "middle",
+      halign: "left",
+      lineWidth: 0.2,
+      lineColor: [0, 0, 0],
+      textColor: [0, 0, 0]
+    },
+    headStyles: {
+      fillColor: false,
+      textColor: [0, 0, 0],
+      fontStyle: "bold",
+      lineWidth: 0.3,
+      lineColor: [0, 0, 0]
+    },
+    bodyStyles: {
+      fillColor: false
+    },
+    columnStyles: {
+      0: { cellWidth: 40 },
+      1: { cellWidth: 80 },
+      2: { cellWidth: 25, halign: "center" },
+      3: { cellWidth: 40 }
+    },
+    theme: "grid"
+  });
+
+  const fileName = "Formato_UdeC.pdf";
+  doc.save(fileName);
+}
 
 // CONSTRUCCION TABLA
 
@@ -1073,10 +1233,42 @@ populateMonths();
 
 const subjectModal = document.getElementById("subjectModal");
 const subjectNameInput = subjectModal.querySelector("input[type='text']");
+const subjectGroupInput = document.getElementById("subjectGroupInput");
+const subjectProgramInput = document.getElementById("subjectProgramInput");
 const subjectColorInput = document.getElementById("subjectColorPicker");
 const colorPreview = document.getElementById("colorPreview");
 const subjectBlocksInput = subjectModal.querySelector("select");
 const saveSubjectBtn = subjectModal.querySelector("button:not(.close-btn)");
+
+function cleanSubjectModalButtons(){
+  ["#deleteSubjectBtn", "#duplicateSubjectBtn"].forEach(id=>{
+    const btn = subjectModal.querySelector(id);
+    if(btn) btn.remove();
+  });
+}
+
+function openSubjectModal(row, col){
+
+  const cell = cellMatrix[row][col];
+
+  if(cell.classList.contains("blocked")) return;
+
+  setCurrentCell(row, col);
+  editingSubjectIndex = null;
+
+  subjectNameInput.value = "";
+  subjectGroupInput.value = "";
+  subjectProgramInput.value = "";
+  subjectColorInput.value = "#1d4ed8";
+  colorPreview.style.background = subjectColorInput.value;
+  subjectBlocksInput.value = "1";
+  saveSubjectBtn.textContent = "Guardar asignatura";
+
+  cleanSubjectModalButtons();
+
+  subjectModal.classList.add("active");
+
+}
 
 function buildScheduleTable(){
 
@@ -1225,28 +1417,6 @@ function hasCurrentCell(){
   return currentCell !== null;
 }
 
-function openSubjectModal(row, col){
-
-  const cell = cellMatrix[row][col];
-
-  if(cell.classList.contains("blocked")) return; // blindaje total
-
-  setCurrentCell(row, col);
-  editingSubjectIndex = null;
-
-  subjectNameInput.value = "";
-  subjectColorInput.value = "#1d4ed8";
-  colorPreview.style.background = subjectColorInput.value;
-  subjectBlocksInput.value = "1";
-  saveSubjectBtn.textContent = "Guardar asignatura";
-
-  const deleteBtn = subjectModal.querySelector("#deleteSubjectBtn");
-  if(deleteBtn) deleteBtn.remove();
-
-  subjectModal.classList.add("active");
-
-}
-
 function setDuplicateCursor(active){
   document.body.style.cursor = active ? "copy" : "default";
   duplicateBar.style.display = active ? "flex" : "none";
@@ -1276,11 +1446,15 @@ function openEditSubjectModal(subject){
 
   resetSubjectModalState();
 
-  editingSubjectIndex = schedules[currentScheduleIndex].subjects.indexOf(subject);
+  editingSubjectIndex = schedules[currentScheduleIndex].subjects.findIndex(
+    s => s.id === subject.id
+  );
 
   setCurrentCell(subject.row, subject.col);
 
   subjectNameInput.value = subject.name;
+  subjectGroupInput.value = subject.group || "";
+  subjectProgramInput.value = subject.program || "";
   subjectColorInput.value = subject.color;
   colorPreview.style.background = subject.color;
   subjectBlocksInput.value = subject.blocks;
@@ -1308,7 +1482,30 @@ subjectColorInput.oninput = () => {
 
 // GUARDAR ASIGNATURA
 
-saveSubjectBtn.onclick = ()=>{
+function isCellOccupied(row, col, blocks, excludeSubject = null){
+  const schedule = schedules[currentScheduleIndex];
+
+  for(let i = 0; i < blocks; i++){
+    const r = row + i;
+
+    const conflict = schedule.subjects.some(s => {
+      if (excludeSubject && s.id === excludeSubject.id) return false;
+
+      for(let b = 0; b < s.blocks; b++){
+        if(s.col === col && s.row + b === r){
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if(conflict) return true;
+  }
+
+  return false;
+}
+
+saveSubjectBtn.onclick = () => {
 
   if(!hasCurrentCell()){
     alert("Primero selecciona una celda del horario.");
@@ -1325,54 +1522,46 @@ saveSubjectBtn.onclick = ()=>{
 
   const schedule = schedules[currentScheduleIndex];
 
-  let originalSubject = null;
+  let editingSubject = null;
   if(editingSubjectIndex !== null){
-    originalSubject = schedule.subjects.splice(editingSubjectIndex,1)[0];
+    editingSubject = schedule.subjects[editingSubjectIndex];
   }
 
-  if(currentCell.row + blocks > document.querySelectorAll("#schedule tbody tr").length){
+  const maxRows = document.querySelectorAll("#schedule tbody tr").length;
+  if(currentCell.row + blocks > maxRows){
     alert("La asignatura excede el horario disponible");
-    if(originalSubject) schedule.subjects.splice(editingSubjectIndex,0,originalSubject);
     return;
   }
 
-  for(let i = 0; i < blocks; i++){
-    const r = currentCell.row + i;
-    const c = currentCell.col;
-
-    const conflict = schedule.subjects.some(s=>{
-      for(let b = 0; b < s.blocks; b++){
-        if(s.col === c && s.row + b === r){
-          return true;
-        }
-      }
-      return false;
-    });
-
-    if(conflict){
-      alert("Ese espacio ya está ocupado por otra asignatura");
-      if(originalSubject) schedule.subjects.splice(editingSubjectIndex,0,originalSubject);
-      return;
-    }
+  if(isCellOccupied(currentCell.row, currentCell.col, blocks, editingSubject)){
+    alert("Ese espacio ya está ocupado por otra asignatura");
+    return;
   }
 
   const newSubject = {
-  name,
-  color,
-  row: currentCell.row,
-  col: currentCell.col,
-  blocks
-};
+    id: editingSubject ? editingSubject.id : crypto.randomUUID(),
+    name,
+    color,
+    row: currentCell.row,
+    col: currentCell.col,
+    blocks,
+    group: subjectGroupInput.value.trim(),
+    program: subjectProgramInput.value.trim()
+  };
+
+  if(editingSubjectIndex !== null){
+    schedule.subjects.splice(editingSubjectIndex, 1);
+  }
 
   schedule.subjects.push(newSubject);
 
   saveData();
   subjectModal.classList.remove("active");
+  clearCurrentCell();
   editingSubjectIndex = null;
   saveSubjectBtn.textContent = "Guardar asignatura";
 
-  const deleteBtn = subjectModal.querySelector("#deleteSubjectBtn");
-  if(deleteBtn) deleteBtn.remove();
+  cleanSubjectModalButtons();
 
   const duplicateBtn = subjectModal.querySelector("#duplicateSubjectBtn");
   if(duplicateBtn) duplicateBtn.remove();
@@ -1388,11 +1577,11 @@ function deleteSubject(){
   saveData();
 
   subjectModal.classList.remove("active");
+  clearCurrentCell();
   editingSubjectIndex = null;
   saveSubjectBtn.textContent = "Guardar asignatura";
 
-  const deleteBtn = subjectModal.querySelector("#deleteSubjectBtn");
-  if(deleteBtn) deleteBtn.remove();
+  cleanSubjectModalButtons();
 
   const duplicateBtn = subjectModal.querySelector("#duplicateSubjectBtn");
   if(duplicateBtn) duplicateBtn.remove();
@@ -1402,11 +1591,14 @@ function deleteSubject(){
 
 function duplicateSubject(subject){
   subjectModal.classList.remove("active");
+  clearCurrentCell();
 
   duplicatingSubject = {
     name: subject.name,
     color: subject.color,
-    blocks: subject.blocks
+    blocks: subject.blocks,
+    group: subject.group || "",
+    program: subject.program || ""
   };
 
   setDuplicateCursor(true);
@@ -1426,38 +1618,27 @@ function placeDuplicatedSubject(row, col){
     return;
   }
 
-  for(let i = 0; i < blocks; i++){
-    const r = row + i;
-    const c = col;
-
-    const conflict = schedule.subjects.some(s=>{
-      for(let b = 0; b < s.blocks; b++){
-        if(s.col === c && s.row + b === r){
-          return true;
-        }
-      }
-      return false;
-    });
-
-    if(conflict){
-      alert("Ese espacio ya está ocupado por otra asignatura");
-      return;
-    }
+  if(isCellOccupied(row, col, blocks)){
+    alert("Ese espacio ya está ocupado por otra asignatura");
+    return;
   }
 
   const newSubject = {
+    id: crypto.randomUUID(),
     name: duplicatingSubject.name,
     color: duplicatingSubject.color,
     row,
     col,
-    blocks: duplicatingSubject.blocks
+    blocks: duplicatingSubject.blocks,
+    group: duplicatingSubject.group || "",
+    program: duplicatingSubject.program || ""
   };
 
   schedule.subjects.push(newSubject);
   saveData();
   buildScheduleTable();
-
   resetSubjectModalState();
+
 }
 
 // DIBUJAR ASIGNATURAS
@@ -1495,7 +1676,6 @@ function renderSubjects(){
 
     const div = document.createElement("div");
     div.className = "subject";
-    div.style.background = "transparent"; // el color pasa al contenido interno
 
     const content = document.createElement("div");
     content.className = "subject-content";
@@ -1655,7 +1835,6 @@ function calculateMonthlyCost(){
   let total = 0;
   let totalTrips = 0;
   let totalSnack = 0;
-  let detail = [];
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
@@ -1683,22 +1862,91 @@ function calculateMonthlyCost(){
     total += dayData.cost;
     totalTrips += dayData.trips;
 
-
-    detail.push({
-      date: date.toLocaleDateString(),
-      cost: dayData.cost,
-      trips: dayData.trips
-    });
   }
 
   return {
     total,
     trips: totalTrips,
     snackTotal: totalSnack,
-    detail
   };
 
 }
+
+// EXPORTAR JSON
+
+document.getElementById("importSchedulesBtn").onclick = () => {
+  document.getElementById("importFileInput").click();
+};
+
+document.getElementById("importFileInput").onchange = (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    try {
+
+      let imported = JSON.parse(event.target.result);
+
+      if (!Array.isArray(imported)) {
+        imported = [imported];
+      }
+
+      imported.forEach(schedule => {
+        schedule.subjects = schedule.subjects.map(normalizeSubject);
+      });
+
+      imported.forEach(schedule => {
+        const exists = schedules.some(s =>
+          s.name === schedule.name && s.created === schedule.created
+        );
+
+        if (!exists) {
+          schedules.push(schedule);
+        }
+      });
+
+      saveData();
+      renderSchedules();
+
+      if (currentScheduleIndex !== null) {
+        buildScheduleTable();
+      }
+
+      alert("Horarios importados correctamente.");
+      document.getElementById("importFileInput").value = "";
+    } 
+    catch (err) {
+      alert("Archivo inválido o corrupto.");
+      console.error(err);
+    }
+  };
+
+  reader.readAsText(file);
+};
+
+document.getElementById("exportScheduleBtn").onclick = () => {
+  if (currentScheduleIndex === null) {
+    alert("No hay ningún horario abierto para exportar.");
+    return;
+  }
+
+  const schedule = schedules[currentScheduleIndex];
+
+  const dataStr = JSON.stringify(schedule, null, 2);
+  const blob = new Blob([dataStr], { type: "application/json" });
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `horario_${schedule.name || "sin_nombre"}.json`;
+  a.click();
+
+  URL.revokeObjectURL(a.href);
+};
+
+// EXPORTAR FORMATO UdeC
+
+document.getElementById("exportPdfBtn").addEventListener("click", exportUniversityPDF);
 
 // EXPORTAR IMAGEN
 
