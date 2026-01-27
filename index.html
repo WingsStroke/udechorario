@@ -297,6 +297,81 @@ button:disabled{
   background-color: rgba(70, 229, 99, 0.15);
 }
 
+.changelog-panel{
+  position: fixed;
+  top: 0;
+  right: -360px;
+  width: 360px;
+  height: 100%;
+  background: #ffffff;
+  box-shadow: -4px 0 10px rgba(0,0,0,0.2);
+  transition: right 0.3s ease;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  font-family: inherit;
+}
+
+.changelog-panel.open{
+  right: 0;
+}
+
+.changelog-header{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #1e1e2f;
+  color: white;
+}
+
+.changelog-header h2{
+  margin: 0;
+  font-size: 18px;
+}
+
+.changelog-header button{
+  background: none;
+  border: none;
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.changelog-content{
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+.changelog-entry{
+  border:1px solid #000;
+  padding:12px;
+  margin-bottom:12px;
+  background:#f9f9f9;
+}
+
+.changelog-entry h3{
+  margin:0 0 6px 0;
+  font-size:15px;
+}
+
+.changelog-entry ul{
+  margin:6px 0;
+  padding-left:18px;
+}
+
+.changelog-entry li{
+  font-size:13px;
+  margin-bottom:4px;
+}
+
+.changelog-entry .date{
+  font-size:12px;
+  color:#444;
+  margin-top:6px;
+  font-weight:600;
+}
+
 </style>
 </head>
 
@@ -306,7 +381,27 @@ button:disabled{
 <div id="home" class="view active">
   <header>
     <h1>Mis Horarios</h1>
-    <button>+ Nuevo horario</button>
+    <div style="display:flex; gap:10px;">
+      <button id="createScheduleBtn">+ Nuevo horario</button>
+      <button id="changelogBtn" style="position:relative;">
+        Changelog
+        <span id="changelogAlert" style="
+          position:absolute;
+          top:-4px;
+          right:-4px;
+          background:#b00020;
+          color:white;
+          border-radius:50%;
+          width:16px;
+          height:16px;
+          font-size:11px;
+          display:none;
+          align-items:center;
+          justify-content:center;
+          font-weight:bold;
+        ">!</span>
+      </button>
+    </div>
   </header>
 
   <div id="sortBar">
@@ -424,7 +519,7 @@ button:disabled{
 <div class="modal" id="monthlyModal">
   <div class="modal-content">
     <span class="close-btn">✕</span>
-    <h3>Calcular Alguinaldo</h3>
+    <h3>Calcular Aguinaldo</h3>
 
     <label>Mes</label>
     <select id="monthSelect"></select>
@@ -488,6 +583,16 @@ button:disabled{
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
+<div id="changelogPanel" class="changelog-panel">
+  <div class="changelog-header">
+    <h2>Registro de cambios</h2>
+    <button id="closeChangelogBtn">✕</button>
+  </div>
+  <div id="changelogContent" class="changelog-content">
+    <!-- Aquí se renderizarán las versiones dinámicamente -->
+  </div>
+</div>
+
 <script>
 
 // PARTE 2
@@ -503,9 +608,97 @@ const resultTrips = document.getElementById("resultTrips");
 const resultTotal = document.getElementById("resultTotal");
 const closeMonthlyResultBtn = document.getElementById("closeMonthlyResult");
 
+const changelogBtn = document.getElementById("changelogBtn");
+const changelogPanel = document.getElementById("changelogPanel");
+const closeChangelogBtn = document.getElementById("closeChangelogBtn");
+const changelogAlert = document.getElementById("changelogAlert");
+const LAST_VERSION_KEY = "lastSeenChangelogVersion";
+
+changelogBtn.addEventListener("click", async () => {
+  changelogPanel.classList.add("open");
+  await loadChangelog();
+
+  const entries = document.querySelectorAll(".changelog-entry");
+  if(entries.length > 0){
+    const lastEntry = entries[entries.length - 1];
+    const versionText = lastEntry.querySelector("h3").textContent;
+    const version = versionText.replace("Versión ", "").trim();
+    localStorage.setItem(LAST_VERSION_KEY, version);
+    changelogAlert.style.display = "none";
+  }
+});
+
+closeChangelogBtn.addEventListener("click", () => {
+  changelogPanel.classList.remove("open");
+});
+
 closeMonthlyResultBtn.onclick = () => {
   monthlyResult.style.display = "none";
 };
+
+function renderChangelog(changelogData){
+  const container = document.getElementById("changelogContent");
+  container.innerHTML = "";
+
+  changelogData.forEach(entry => {
+    const card = document.createElement("div");
+    card.className = "changelog-entry";
+
+    const title = document.createElement("h3");
+    title.textContent = `Versión ${entry.version}`;
+
+    const list = document.createElement("ul");
+    entry.changes.forEach(change => {
+      const li = document.createElement("li");
+      li.textContent = change;
+      list.appendChild(li);
+    });
+
+    const date = document.createElement("div");
+    date.className = "date";
+    date.textContent = `Fecha de publicación: ${entry.date}`;
+
+    card.appendChild(title);
+    card.appendChild(list);
+    card.appendChild(date);
+
+    container.appendChild(card);
+  });
+}
+
+function checkChangelogVersion(changelogData){
+  if(!Array.isArray(changelogData) || changelogData.length === 0) return;
+
+  // Suponemos que la versión más reciente es la última del array
+  const latestVersion = changelogData[changelogData.length - 1].version;
+  const lastSeenVersion = localStorage.getItem(LAST_VERSION_KEY);
+
+  if(lastSeenVersion !== latestVersion){
+    // Hay una nueva versión
+    changelogAlert.style.display = "inline-flex";
+  }else{
+    // Todo está al día
+    changelogAlert.style.display = "none";
+  }
+}
+
+async function loadChangelog(){
+
+  try{
+    const cacheBuster = Date.now();
+    const response = await fetch(`changelog.json?v=${cacheBuster}`, {
+      cache: "no-store"
+    });
+    const data = await response.json();
+
+    renderChangelog(data);
+    checkChangelogVersion(data);
+
+    return data;
+  }catch(err){
+    console.error("Error cargando changelog:", err);
+  }
+}
 
 function resetSubjectModalState(){
   duplicatingSubject = null;
@@ -526,7 +719,7 @@ let currentScheduleIndex = null;
 const homeView = document.getElementById("home");
 const appView = document.getElementById("app");
 const scheduleList = document.getElementById("scheduleList");
-const createScheduleBtn = document.querySelector("#home header button");
+const createScheduleBtn = document.getElementById("createScheduleBtn");
 const sortSelect = document.querySelector("#sortBar select");
 
 const nameModal = document.getElementById("newScheduleModal");
@@ -712,6 +905,8 @@ function enforceMinZero(input){
 enforceMinZero(document.getElementById("snackCostInput"));
 enforceMinZero(document.getElementById("transportCostInput"));
 enforceMinZero(document.getElementById("gapBlocksInput"));
+
+loadChangelog();
 
 </script>
 
@@ -1542,5 +1737,6 @@ document.addEventListener("keydown", e => {
 });
 
 </script>
+
 </body>
 </html>
