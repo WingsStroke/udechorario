@@ -3,24 +3,30 @@
     "version": "1.0.0",
     "date": "2026-01-26",
     "changes": [
-      "Lanzamiento inicial"
+      "Lanzamiento inicial."
     ]
   },
   {
     "version": "1.0.1",
     "date": "2026-01-26",
     "changes": [
-      "Botón 'Changelog' añadido"
+      "Botón 'Changelog' añadido."
     ]
   },
   {
     "version": "1.0.2",
     "date": "2026-01-27",
     "changes": [
-      "Opción para exportar horario a formato UdeC para matriculas",
-      "Opción para exportar horario a JSON",
-      "Se arregló un bug de duplicación"
+      "Opción para exportar horario a formato UdeC para matriculas.",
+      "Opción para exportar horario a JSON.",
+      "Se arregló un bug de duplicación."
+    ]
+  },
+  {
+    "version": "1.0.3",
+    "date": "2026-01-28",
+    "changes": [
+      "Se agregó jornada nocturna."
     ]
   }
 ]
-
